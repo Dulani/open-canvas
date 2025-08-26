@@ -4,7 +4,6 @@ import { useToast } from "@/hooks/use-toast";
 import { ContextDocument } from "@opencanvas/shared/types";
 import { FFmpeg } from "@ffmpeg/ffmpeg";
 import { toBlobURL } from "@ffmpeg/util";
-import { createClient } from "@supabase/supabase-js";
 
 export function arrayToFileList(files: File[] | undefined) {
   if (!files || !files.length) return undefined;
@@ -55,44 +54,141 @@ export function contextDocumentToFile(document: ContextDocument): File {
   }
 }
 
-export async function transcribeAudio(file: File, userId: string) {
-  if (
-    !process.env.NEXT_PUBLIC_SUPABASE_URL_DOCUMENTS ||
-    !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY_DOCUMENTS
-  ) {
-    throw new Error(
-      "Supabase credentials for uploading context documents are missing"
-    );
-  }
-  const client = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL_DOCUMENTS,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY_DOCUMENTS
-  );
-
-  const res = await client.storage
-    .from("documents")
-    .upload(
-      `${userId}/${new Date().getTime()}-${file.name.replaceAll("/", "-").replaceAll(" ", "-")}`,
-      file,
-      {
-        upsert: true,
-      }
-    );
-  if (res.error) {
-    throw new Error(`Failed to upload context document: ${res.error.message}`);
-  }
-
+export async function transcribeAudio(file: File) {
   const result = await fetch("/api/whisper/audio", {
     method: "POST",
-    body: JSON.stringify({
-      path: res.data.path,
-    }),
+    body: file,
   });
   if (!result.ok) {
     throw new Error("Failed to transcribe audio");
   }
   const data = await result.json();
   return data.text;
+}
+
+export interface ConvertDocumentsProps {
+  ffmpeg: FFmpeg;
+  messageRef: React.RefObject<HTMLDivElement>;
+  documents: FileList;
+  toast: ReturnType<typeof useToast>["toast"];
+}
+
+export async function convertDocuments({
+  ffmpeg,
+  messageRef,
+  documents,
+  toast,
+}: ConvertDocumentsProps): Promise<ContextDocument[]> {
+  const files = Array.from(documents);
+  const includesVideoFile = files.some((file) =>
+    ALLOWED_VIDEO_TYPES.has(file.type)
+  );
+  if (includesVideoFile) {
+    // Load FFmpeg
+    await load(ffmpeg, messageRef);
+  }
+
+  const documentsPromise = Array.from(documents).map(async (doc) => {
+    const isAudio = ALLOWED_AUDIO_TYPES.has(doc.type);
+    const isVideo = ALLOWED_VIDEO_TYPES.has(doc.type);
+
+    if (isAudio) {
+      if (doc.size > 26214400) {
+        toast({
+          title: "Failed to transcribe audio",
+          description: `Audio file "${doc.name}" is larger than the max size of 26214400 bytes. Received ${doc.size} bytes.`,
+          variant: "destructive",
+          duration: 7500,
+        });
+        return null;
+      }
+
+      toast({
+        title: "Transcribing audio",
+        description: (
+          <span className="flex items-center gap-2">
+            Transcribing audio {doc.name}. This may take a while. Please wait{" "}
+            <Icons.LoaderCircle className="animate-spin w-4 h-4" />
+          </span>
+        ),
+        duration: 15000,
+      });
+
+      const transcription = await transcribeAudio(doc);
+
+      toast({
+        title: "Successfully transcribed audio",
+        description: `Transcribed audio ${doc.name}.`,
+      });
+
+      return {
+        name: doc.name,
+        type: "text",
+        data: transcription,
+      };
+    }
+
+    if (isVideo) {
+      toast({
+        title: "Converting video to audio",
+        description: (
+          <span className="flex items-center gap-2">
+            Converting video {doc.name} to audio. This may take a while. Please
+            wait <Icons.LoaderCircle className="animate-spin w-4 h-4" />
+          </span>
+        ),
+        duration: 15000,
+      });
+
+      // Convert video to audio
+      const audioFile = await convertToAudio(doc, ffmpeg);
+
+      if (audioFile.size > 26214400) {
+        toast({
+          title: "Failed to transcribe video",
+          description: `Audio for video "${doc.name}" is larger than the max size of 26214400 bytes. Received ${audioFile.size} bytes.`,
+          variant: "destructive",
+          duration: 7500,
+        });
+        return null;
+      }
+
+      toast({
+        title: "Successfully converted video to audio",
+        description: (
+          <span className="flex items-center gap-2">
+            Video to audio conversion completed for {doc.name}. Transcribing
+            audio now. This may take a while. Please wait{" "}
+            <Icons.LoaderCircle className="animate-spin w-4 h-4" />
+          </span>
+        ),
+        duration: 60000,
+      });
+      // Transcribe audio to video
+      const transcription = await transcribeAudio(audioFile);
+
+      toast({
+        title: "Successfully transcribed video",
+        description: `Transcribed video ${doc.name}.`,
+      });
+
+      return {
+        name: doc.name,
+        type: "text",
+        data: transcription,
+      };
+    }
+
+    return {
+      name: doc.name,
+      type: doc.type,
+      data: await fileToBase64(doc),
+    };
+  });
+  const documentsResult = (await Promise.all(documentsPromise)).filter(
+    (x) => x !== null
+  );
+  return documentsResult as ContextDocument[];
 }
 
 export function fileToBase64(file: File): Promise<string> {
@@ -111,8 +207,6 @@ export function fileToBase64(file: File): Promise<string> {
     reader.onerror = (error) => reject(error);
   });
 }
-
-const MAX_AUDIO_SIZE = 26214400;
 
 export async function load(
   ffmpeg: FFmpeg,
@@ -178,131 +272,4 @@ export async function convertToAudio(
     console.error("Error converting video to audio:", error);
     throw error;
   }
-}
-
-export interface ConvertDocumentsProps {
-  ffmpeg: FFmpeg;
-  messageRef: React.RefObject<HTMLDivElement>;
-  documents: FileList;
-  userId: string;
-  toast: ReturnType<typeof useToast>["toast"];
-}
-
-export async function convertDocuments({
-  ffmpeg,
-  messageRef,
-  documents,
-  userId,
-  toast,
-}: ConvertDocumentsProps): Promise<ContextDocument[]> {
-  const files = Array.from(documents);
-  const includesVideoFile = files.some((file) =>
-    ALLOWED_VIDEO_TYPES.has(file.type)
-  );
-  if (includesVideoFile) {
-    // Load FFmpeg
-    await load(ffmpeg, messageRef);
-  }
-
-  const documentsPromise = Array.from(documents).map(async (doc) => {
-    const isAudio = ALLOWED_AUDIO_TYPES.has(doc.type);
-    const isVideo = ALLOWED_VIDEO_TYPES.has(doc.type);
-
-    if (isAudio) {
-      if (doc.size > MAX_AUDIO_SIZE) {
-        toast({
-          title: "Failed to transcribe audio",
-          description: `Audio file "${doc.name}" is larger than the max size of 26214400 bytes. Received ${doc.size} bytes.`,
-          variant: "destructive",
-          duration: 7500,
-        });
-        return null;
-      }
-
-      toast({
-        title: "Transcribing audio",
-        description: (
-          <span className="flex items-center gap-2">
-            Transcribing audio {doc.name}. This may take a while. Please wait{" "}
-            <Icons.LoaderCircle className="animate-spin w-4 h-4" />
-          </span>
-        ),
-        duration: 15000,
-      });
-
-      const transcription = await transcribeAudio(doc, userId);
-
-      toast({
-        title: "Successfully transcribed audio",
-        description: `Transcribed audio ${doc.name}.`,
-      });
-
-      return {
-        name: doc.name,
-        type: "text",
-        data: transcription,
-      };
-    }
-
-    if (isVideo) {
-      toast({
-        title: "Converting video to audio",
-        description: (
-          <span className="flex items-center gap-2">
-            Converting video {doc.name} to audio. This may take a while. Please
-            wait <Icons.LoaderCircle className="animate-spin w-4 h-4" />
-          </span>
-        ),
-        duration: 15000,
-      });
-
-      // Convert video to audio
-      const audioFile = await convertToAudio(doc, ffmpeg);
-
-      if (audioFile.size > MAX_AUDIO_SIZE) {
-        toast({
-          title: "Failed to transcribe video",
-          description: `Audio for video "${doc.name}" is larger than the max size of 26214400 bytes. Received ${audioFile.size} bytes.`,
-          variant: "destructive",
-          duration: 7500,
-        });
-        return null;
-      }
-
-      toast({
-        title: "Successfully converted video to audio",
-        description: (
-          <span className="flex items-center gap-2">
-            Video to audio conversion completed for {doc.name}. Transcribing
-            audio now. This may take a while. Please wait{" "}
-            <Icons.LoaderCircle className="animate-spin w-4 h-4" />
-          </span>
-        ),
-        duration: 60000,
-      });
-      // Transcribe audio to video
-      const transcription = await transcribeAudio(audioFile, userId);
-
-      toast({
-        title: "Successfully transcribed video",
-        description: `Transcribed video ${doc.name}.`,
-      });
-
-      return {
-        name: doc.name,
-        type: "text",
-        data: transcription,
-      };
-    }
-
-    return {
-      name: doc.name,
-      type: doc.type,
-      data: await fileToBase64(doc),
-    };
-  });
-  const documentsResult = (await Promise.all(documentsPromise)).filter(
-    (x) => x !== null
-  );
-  return documentsResult;
 }

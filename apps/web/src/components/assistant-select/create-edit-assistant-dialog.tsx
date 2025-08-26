@@ -38,7 +38,6 @@ import { useContextDocuments } from "@/hooks/useContextDocuments";
 interface CreateEditAssistantDialogProps {
   open: boolean;
   setOpen: Dispatch<SetStateAction<boolean>>;
-  userId: string | undefined;
   isEditing: boolean;
   assistant?: Assistant;
   createCustomAssistant: ({
@@ -98,7 +97,7 @@ export function CreateEditAssistantDialog(
     setLoadingDocuments,
     processDocuments,
     setProcessedContextDocuments,
-  } = useContextDocuments(props.userId || "");
+  } = useContextDocuments();
 
   const metadata = props.assistant?.metadata as Record<string, any> | undefined;
 
@@ -152,18 +151,21 @@ export function CreateEditAssistantDialog(
       setDocuments(undefined);
       setUrls([]);
     }
-  }, [props.assistant, props.isEditing]);
+  }, [
+    props.assistant,
+    props.isEditing,
+    metadata?.description,
+    metadata?.iconData?.iconColor,
+    metadata?.iconData?.iconName,
+    setDocuments,
+    setUrls,
+    setLoadingDocuments,
+    getContextDocuments,
+    setProcessedContextDocuments,
+  ]);
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!props.userId) {
-      toast({
-        title: "User not found",
-        variant: "destructive",
-        duration: 5000,
-      });
-      return;
-    }
     if (props.isEditing && !props.assistant) {
       toast({
         title: "Assistant not found",
@@ -190,7 +192,7 @@ export function CreateEditAssistantDialog(
           },
         },
         assistantId: props.assistant.assistant_id,
-        userId: props.userId,
+        userId: "anonymous",
       });
       success = !!updatedAssistant;
       if (updatedAssistant) {
@@ -210,7 +212,7 @@ export function CreateEditAssistantDialog(
             iconColor,
           },
         },
-        userId: props.userId,
+        userId: "anonymous",
       });
       success = !!assistant;
       if (assistant) {

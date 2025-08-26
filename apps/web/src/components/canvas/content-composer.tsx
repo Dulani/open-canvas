@@ -17,7 +17,7 @@ import {
 } from "@assistant-ui/react";
 import { BaseMessage, HumanMessage } from "@langchain/core/messages";
 import { Thread as ThreadType } from "@langchain/langgraph-sdk";
-import React, { useRef, useState } from "react";
+import React, { useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { Toaster } from "../ui/toaster";
 import { Thread } from "@/components/chat-interface";
@@ -27,10 +27,8 @@ import {
   SimpleTextAttachmentAdapter,
 } from "@assistant-ui/react";
 import { AudioAttachmentAdapter } from "../ui/assistant-ui/attachment-adapters/audio";
-import { FFmpeg } from "@ffmpeg/ffmpeg";
-import { arrayToFileList, convertDocuments } from "@/lib/attachments";
+import { arrayToFileList } from "@/lib/attachments";
 import { VideoAttachmentAdapter } from "../ui/assistant-ui/attachment-adapters/video";
-import { useUserContext } from "@/contexts/UserContext";
 import { useThreadContext } from "@/contexts/ThreadProvider";
 import { PDFAttachmentAdapter } from "../ui/assistant-ui/attachment-adapters/pdf";
 
@@ -50,7 +48,6 @@ export function ContentComposerChatInterfaceComponent(
   props: ContentComposerChatInterfaceProps
 ): React.ReactElement {
   const { toast } = useToast();
-  const userData = useUserContext();
   const { graphData } = useGraphContext();
   const {
     messages,
@@ -61,21 +58,11 @@ export function ContentComposerChatInterfaceComponent(
   } = graphData;
   const { getUserThreads } = useThreadContext();
   const [isRunning, setIsRunning] = useState(false);
-  const messageRef = useRef<HTMLDivElement>(null);
-  const ffmpegRef = useRef(new FFmpeg());
 
   async function onNew(message: AppendMessage): Promise<void> {
     // Explicitly check for false and not ! since this does not provide a default value
     // so we should assume undefined is true.
     if (message.startRun === false) return;
-    if (!userData.user) {
-      toast({
-        title: "User not found",
-        variant: "destructive",
-        duration: 5000,
-      });
-      return;
-    }
 
     if (message.content?.[0]?.type !== "text") {
       toast({
@@ -96,14 +83,7 @@ export function ContentComposerChatInterfaceComponent(
         .filter((f): f is File => f != null);
       const fileList = arrayToFileList(files);
       if (fileList) {
-        const documentsResult = await convertDocuments({
-          ffmpeg: ffmpegRef.current,
-          messageRef,
-          documents: fileList,
-          userId: userData.user.id,
-          toast,
-        });
-        contentDocuments.push(...documentsResult);
+        // TODO: Re-implement document conversion
       }
     }
 
@@ -153,7 +133,6 @@ export function ContentComposerChatInterfaceComponent(
     <div className="h-full w-full">
       <AssistantRuntimeProvider runtime={runtime}>
         <Thread
-          userId={userData?.user?.id}
           setChatStarted={props.setChatStarted}
           handleQuickStart={props.handleQuickStart}
           hasChatStarted={props.hasChatStarted}

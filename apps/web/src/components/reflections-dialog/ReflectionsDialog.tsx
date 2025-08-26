@@ -74,12 +74,18 @@ export function ReflectionsDialog(props: ReflectionsDialogProps) {
     // Don't re-fetch reflections if they already exist & are for the same assistant
     if (
       (reflections?.content || reflections?.styleRules) &&
-      reflections.assistantId === selectedAssistant.assistant_id
+      reflections?.assistantId === selectedAssistant.assistant_id
     )
       return;
 
     getReflections(selectedAssistant.assistant_id);
-  }, [selectedAssistant]);
+  }, [
+    selectedAssistant,
+    reflections?.content,
+    reflections?.styleRules,
+    reflections?.assistantId,
+    getReflections,
+  ]);
 
   const handleDelete = async () => {
     if (!selectedAssistant) {

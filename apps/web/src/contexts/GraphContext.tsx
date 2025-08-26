@@ -1,5 +1,6 @@
+"use client";
+
 import { v4 as uuidv4 } from "uuid";
-import { useUserContext } from "@/contexts/UserContext";
 import {
   isArtifactCodeContent,
   isArtifactMarkdownContent,
@@ -38,6 +39,7 @@ import {
   Dispatch,
   ReactNode,
   SetStateAction,
+  useCallback,
   useContext,
   useEffect,
   useRef,
@@ -114,7 +116,6 @@ function extractStreamDataOutput(output: any) {
 }
 
 export function GraphProvider({ children }: { children: ReactNode }) {
-  const userData = useUserContext();
   const assistantsData = useAssistantContext();
   const threadData = useThreadContext();
   const { toast } = useToast();
@@ -148,7 +149,7 @@ export function GraphProvider({ children }: { children: ReactNode }) {
   );
 
   useEffect(() => {
-    if (typeof window === "undefined" || !userData.user) return;
+    if (typeof window === "undefined") return;
 
     // Get or create a new assistant if there isn't one set in state, and we're not
     // loading all assistants already.
@@ -156,9 +157,9 @@ export function GraphProvider({ children }: { children: ReactNode }) {
       !assistantsData.selectedAssistant &&
       !assistantsData.isLoadingAllAssistants
     ) {
-      assistantsData.getOrCreateAssistant(userData.user.id);
+      assistantsData.getOrCreateAssistant("anonymous");
     }
-  }, [userData.user]);
+  }, [assistantsData]);
 
   // Very hacky way of ensuring updateState is not called when a thread is switched
   useEffect(() => {
@@ -205,7 +206,15 @@ export function GraphProvider({ children }: { children: ReactNode }) {
       // We need to update
       debouncedAPIUpdate(artifact, threadData.threadId);
     }
-  }, [artifact, threadData.threadId]);
+  }, [
+    artifact,
+    threadData.threadId,
+    messages.length,
+    updateRenderedArtifactRequired,
+    threadSwitched,
+    isStreaming,
+    debouncedAPIUpdate,
+  ]);
 
   const searchOrCreateEffectRan = useRef(false);
 
@@ -213,7 +222,6 @@ export function GraphProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (
       typeof window === "undefined" ||
-      !userData.user ||
       threadData.createThreadLoading ||
       !threadData.threadId
     ) {
@@ -235,7 +243,73 @@ export function GraphProvider({ children }: { children: ReactNode }) {
       // Failed to fetch thread. Remove from query params
       threadData.setThreadId(null);
     });
-  }, [threadData.threadId, userData.user]);
+  }, [threadData, switchSelectedThread]);
+
+  const switchSelectedThread = useCallback(
+    (thread: Thread) => {
+      setUpdateRenderedArtifactRequired(true);
+      setThreadSwitched(true);
+    setChatStarted(true);
+
+    // Set the thread ID in state. Then set in cookies so a new thread
+    // isn't created on page load if one already exists.
+    threadData.setThreadId(thread.thread_id);
+
+    // Set the model name and config
+    if (thread.metadata?.customModelName) {
+      threadData.setModelName(
+        thread.metadata.customModelName as ALL_MODEL_NAMES
+      );
+      threadData.setModelConfig(
+        thread.metadata.customModelName as ALL_MODEL_NAMES,
+        thread.metadata.modelConfig as CustomModelConfig
+      );
+    } else {
+      threadData.setModelName(DEFAULT_MODEL_NAME);
+      threadData.setModelConfig(DEFAULT_MODEL_NAME, DEFAULT_MODEL_CONFIG);
+    }
+
+    const castValues: {
+      artifact: ArtifactV3 | undefined;
+      messages: Record<string, any>[] | undefined;
+    } = {
+      artifact: undefined,
+      messages: (thread.values as Record<string, any>)?.messages || undefined,
+    };
+    const castThreadValues = thread.values as Record<string, any>;
+    if (castThreadValues?.artifact) {
+      if (isDeprecatedArtifactType(castThreadValues.artifact)) {
+        castValues.artifact = convertToArtifactV3(castThreadValues.artifact);
+      } else {
+        castValues.artifact = castThreadValues.artifact;
+      }
+    } else {
+      castValues.artifact = undefined;
+    }
+    lastSavedArtifact.current = castValues?.artifact;
+
+    if (!castValues?.messages?.length) {
+      setMessages([]);
+      setArtifact(castValues?.artifact);
+      return;
+    }
+    setArtifact(castValues?.artifact);
+    setMessages(
+      castValues.messages.map((msg: Record<string, any>) => {
+        if (msg.response_metadata?.langSmithRunURL) {
+          msg.tool_calls = msg.tool_calls ?? [];
+          msg.tool_calls.push({
+            name: "langsmith_tool_ui",
+            args: { sharedRunURL: msg.response_metadata.langSmithRunURL },
+            id: msg.response_metadata.langSmithRunURL
+              ?.split("https://smith.langchain.com/public/")[1]
+              .split("/")[0],
+          });
+        }
+        return msg as BaseMessage;
+      })
+    );
+  }, [threadData, setChatStarted, setUpdateRenderedArtifactRequired, setThreadSwitched]);
 
   const updateArtifact = async (
     artifactToUpdate: ArtifactV3,
@@ -1346,71 +1420,6 @@ export function GraphProvider({ children }: { children: ReactNode }) {
       };
       return newArtifact;
     });
-  };
-
-  const switchSelectedThread = (thread: Thread) => {
-    setUpdateRenderedArtifactRequired(true);
-    setThreadSwitched(true);
-    setChatStarted(true);
-
-    // Set the thread ID in state. Then set in cookies so a new thread
-    // isn't created on page load if one already exists.
-    threadData.setThreadId(thread.thread_id);
-
-    // Set the model name and config
-    if (thread.metadata?.customModelName) {
-      threadData.setModelName(
-        thread.metadata.customModelName as ALL_MODEL_NAMES
-      );
-      threadData.setModelConfig(
-        thread.metadata.customModelName as ALL_MODEL_NAMES,
-        thread.metadata.modelConfig as CustomModelConfig
-      );
-    } else {
-      threadData.setModelName(DEFAULT_MODEL_NAME);
-      threadData.setModelConfig(DEFAULT_MODEL_NAME, DEFAULT_MODEL_CONFIG);
-    }
-
-    const castValues: {
-      artifact: ArtifactV3 | undefined;
-      messages: Record<string, any>[] | undefined;
-    } = {
-      artifact: undefined,
-      messages: (thread.values as Record<string, any>)?.messages || undefined,
-    };
-    const castThreadValues = thread.values as Record<string, any>;
-    if (castThreadValues?.artifact) {
-      if (isDeprecatedArtifactType(castThreadValues.artifact)) {
-        castValues.artifact = convertToArtifactV3(castThreadValues.artifact);
-      } else {
-        castValues.artifact = castThreadValues.artifact;
-      }
-    } else {
-      castValues.artifact = undefined;
-    }
-    lastSavedArtifact.current = castValues?.artifact;
-
-    if (!castValues?.messages?.length) {
-      setMessages([]);
-      setArtifact(castValues?.artifact);
-      return;
-    }
-    setArtifact(castValues?.artifact);
-    setMessages(
-      castValues.messages.map((msg: Record<string, any>) => {
-        if (msg.response_metadata?.langSmithRunURL) {
-          msg.tool_calls = msg.tool_calls ?? [];
-          msg.tool_calls.push({
-            name: "langsmith_tool_ui",
-            args: { sharedRunURL: msg.response_metadata.langSmithRunURL },
-            id: msg.response_metadata.langSmithRunURL
-              ?.split("https://smith.langchain.com/public/")[1]
-              .split("/")[0],
-          });
-        }
-        return msg as BaseMessage;
-      })
-    );
   };
 
   const contextValue: GraphContentType = {

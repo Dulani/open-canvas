@@ -4,7 +4,7 @@ import { arrayToFileList, convertDocuments, load } from "@/lib/attachments";
 import { useToast } from "./use-toast";
 import { ContextDocument } from "@opencanvas/shared/types";
 
-export function useContextDocuments(userId: string) {
+export function useContextDocuments() {
   const { toast } = useToast();
   const [processedContextDocuments, setProcessedContextDocuments] = useState<
     Map<string, ContextDocument>
@@ -61,16 +61,6 @@ export function useContextDocuments(userId: string) {
   };
 
   const processDocuments = async () => {
-    if (!userId) {
-      toast({
-        title: "User not found",
-        description: "Please try again later.",
-        variant: "destructive",
-        duration: 5000,
-      });
-      return [];
-    }
-
     const files = documents?.length ? Array.from(documents) : [];
     const currentFileNames = new Set(files.map((f) => f.name));
     const currentUrls = new Set(urls);
@@ -98,7 +88,6 @@ export function useContextDocuments(userId: string) {
             ffmpeg: ffmpegRef.current,
             messageRef,
             documents: unprocessedFileList,
-            userId: userId,
             toast,
           })
         : [],

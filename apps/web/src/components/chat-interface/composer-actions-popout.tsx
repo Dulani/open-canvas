@@ -11,7 +11,6 @@ import { useGraphContext } from "@/contexts/GraphContext";
 import { useAssistantContext } from "@/contexts/AssistantContext";
 
 interface ComposerActionsPopOutProps {
-  userId: string | undefined;
   chatStarted: boolean;
 }
 
@@ -107,7 +106,6 @@ export function ComposerActionsPopOut(props: ComposerActionsPopOutProps) {
           )}
           {!isDefaultSelected && (
             <AssistantSelect
-              userId={props.userId}
               chatStarted={props.chatStarted}
               className="bg-blue-100 hover:bg-blue-100 transition-colors ease-in-out"
               onOpenChange={(isOpen) => {
@@ -141,7 +139,6 @@ export function ComposerActionsPopOut(props: ComposerActionsPopOutProps) {
               )}
               {isDefaultSelected && (
                 <AssistantSelect
-                  userId={props.userId}
                   chatStarted={props.chatStarted}
                   className="hover:bg-blue-100 transition-colors ease-in-out"
                   onOpenChange={(isOpen) => {

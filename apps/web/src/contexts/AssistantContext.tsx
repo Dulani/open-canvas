@@ -1,3 +1,5 @@
+"use client";
+
 import { useToast } from "@/hooks/use-toast";
 import { Assistant } from "@langchain/langgraph-sdk";
 import { ContextDocument } from "@opencanvas/shared/types";
@@ -9,9 +11,6 @@ import {
   useContext,
   useState,
 } from "react";
-import { createClient } from "@/hooks/utils";
-import { getCookie, removeCookie } from "@/lib/cookies";
-import { ASSISTANT_ID_COOKIE } from "@/constants";
 
 type AssistantContentType = {
   assistants: Assistant[];
@@ -20,8 +19,7 @@ type AssistantContentType = {
   isDeletingAssistant: boolean;
   isCreatingAssistant: boolean;
   isEditingAssistant: boolean;
-  getOrCreateAssistant: (userId: string) => Promise<void>;
-  getAssistants: (userId: string) => Promise<void>;
+  getOrCreateAssistant: () => Promise<void>;
   deleteAssistant: (assistantId: string) => Promise<boolean>;
   createCustomAssistant: (
     args: CreateCustomAssistantArgs
@@ -84,14 +82,12 @@ export interface CreateAssistantFields {
 
 export type CreateCustomAssistantArgs = {
   newAssistant: CreateAssistantFields;
-  userId: string;
   successCallback?: (id: string) => void;
 };
 
 export type EditCustomAssistantArgs = {
   editedAssistant: CreateAssistantFields;
   assistantId: string;
-  userId: string;
 };
 
 const AssistantContext = createContext<AssistantContentType | undefined>(
@@ -107,35 +103,15 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
   const [assistants, setAssistants] = useState<Assistant[]>([]);
   const [selectedAssistant, setSelectedAssistant] = useState<Assistant>();
 
-  const getAssistants = async (userId: string): Promise<void> => {
-    setIsLoadingAllAssistants(true);
-    try {
-      const client = createClient();
-      const response = await client.assistants.search({
-        metadata: {
-          user_id: userId,
-        },
-      });
-
-      setAssistants({
-        ...response,
-      });
-      setIsLoadingAllAssistants(false);
-    } catch (e) {
-      toast({
-        title: "Failed to get assistants",
-        description: "Please try again later.",
-      });
-      console.error("Failed to get assistants", e);
-      setIsLoadingAllAssistants(false);
-    }
-  };
-
   const deleteAssistant = async (assistantId: string): Promise<boolean> => {
     setIsDeletingAssistant(true);
     try {
-      const client = createClient();
-      await client.assistants.delete(assistantId);
+      const assistants =
+        JSON.parse(localStorage.getItem("assistants") || "[]") || [];
+      const updatedAssistants = assistants.filter(
+        (assistant: Assistant) => assistant.assistant_id !== assistantId
+      );
+      localStorage.setItem("assistants", JSON.stringify(updatedAssistants));
 
       if (selectedAssistant?.assistant_id === assistantId) {
         // Get the first assistant in the list to set as
@@ -162,19 +138,17 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
 
   const createCustomAssistant = async ({
     newAssistant,
-    userId,
     successCallback,
   }: CreateCustomAssistantArgs): Promise<Assistant | undefined> => {
     setIsCreatingAssistant(true);
     try {
-      const client = createClient();
       const { tools, systemPrompt, name, documents, ...metadata } =
         newAssistant;
-      const createdAssistant = await client.assistants.create({
-        graphId: "agent",
+      const createdAssistant = {
+        assistant_id: `asst_${Math.random().toString(36).substring(7)}`,
         name,
         metadata: {
-          user_id: userId,
+          user_id: "anonymous",
           ...metadata,
         },
         config: {
@@ -184,8 +158,14 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
             documents,
           },
         },
-        ifExists: "do_nothing",
-      });
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      } as Assistant;
+
+      const assistants =
+        JSON.parse(localStorage.getItem("assistants") || "[]") || [];
+      assistants.push(createdAssistant);
+      localStorage.setItem("assistants", JSON.stringify(assistants));
 
       setAssistants((prev) => [...prev, createdAssistant]);
       setSelectedAssistant(createdAssistant);
@@ -206,18 +186,16 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
   const editCustomAssistant = async ({
     editedAssistant,
     assistantId,
-    userId,
   }: EditCustomAssistantArgs): Promise<Assistant | undefined> => {
     setIsEditingAssistant(true);
     try {
-      const client = createClient();
       const { tools, systemPrompt, name, documents, ...metadata } =
         editedAssistant;
-      const response = await client.assistants.update(assistantId, {
+      const updatedAssistant = {
+        assistant_id: assistantId,
         name,
-        graphId: "agent",
         metadata: {
-          user_id: userId,
+          user_id: "anonymous",
           ...metadata,
         },
         config: {
@@ -227,18 +205,30 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
             documents,
           },
         },
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      } as Assistant;
+
+      const assistants =
+        JSON.parse(localStorage.getItem("assistants") || "[]") || [];
+      const updatedAssistants = assistants.map((assistant: Assistant) => {
+        if (assistant.assistant_id === assistantId) {
+          return updatedAssistant;
+        }
+        return assistant;
       });
+      localStorage.setItem("assistants", JSON.stringify(updatedAssistants));
 
       setAssistants((prev) =>
         prev.map((assistant) => {
           if (assistant.assistant_id === assistantId) {
-            return response;
+            return updatedAssistant;
           }
           return assistant;
         })
       );
       setIsEditingAssistant(false);
-      return response;
+      return updatedAssistant;
     } catch (e) {
       console.error("Failed to edit assistant", e);
       setIsEditingAssistant(false);
@@ -246,93 +236,15 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  /**
-   * Legacy function which gets the assistant and updates it's metadata. Then, it deletes the assistant ID cookie
-   * to ensure this function does not run again.
-   */
-  const legacyGetAndUpdateAssistant = async (
-    userId: string,
-    assistantIdCookie: string
-  ) => {
-    const updatedAssistant = await editCustomAssistant({
-      editedAssistant: {
-        is_default: true,
-        iconData: {
-          iconName: "User",
-          iconColor: "#000000",
-        },
-        description: "Your default assistant.",
-        name: "Default assistant",
-        tools: undefined,
-        systemPrompt: undefined,
-      },
-      assistantId: assistantIdCookie,
-      userId,
-    });
-
-    if (!updatedAssistant) {
-      const ghIssueTitle = "Failed to set default assistant";
-      const ghIssueBody = `Failed to set the default assistant for user.\n\nDate: '${new Date().toISOString()}'`;
-      const assignee = "bracesproul";
-      const queryParams = new URLSearchParams({
-        title: ghIssueTitle,
-        body: ghIssueBody,
-        assignee,
-        "labels[]": "autogenerated",
-      });
-      const newIssueURL = `https://github.com/langchain-ai/open-canvas/issues/new?${queryParams.toString()}`;
-
-      toast({
-        title: "Failed to edit assistant",
-        description: (
-          <p>
-            Please open an issue{" "}
-            <a href={newIssueURL} target="_blank">
-              here
-            </a>{" "}
-            (do <i>not</i> edit fields) and try again later.
-          </p>
-        ),
-      });
-      return;
-    }
-
-    setSelectedAssistant(updatedAssistant);
-    setAssistants([updatedAssistant]);
-    // Remove the cookie to ensure this is not called again.
-    removeCookie(ASSISTANT_ID_COOKIE);
-  };
-
-  const getOrCreateAssistant = async (userId: string) => {
+  const getOrCreateAssistant = async () => {
     if (selectedAssistant) {
       return;
     }
     setIsLoadingAllAssistants(true);
-    const client = createClient();
-    let userAssistants: Assistant[] = [];
+    const assistants =
+      JSON.parse(localStorage.getItem("assistants") || "[]") || [];
 
-    const assistantIdCookie = getCookie(ASSISTANT_ID_COOKIE);
-    if (assistantIdCookie) {
-      await legacyGetAndUpdateAssistant(userId, assistantIdCookie);
-      // Return early because this function will set the selected assistant and assistants state.
-      setIsLoadingAllAssistants(false);
-      return;
-    }
-
-    // No cookie found. First, search for all assistants under the user's ID
-    try {
-      userAssistants = await client.assistants.search({
-        graphId: "agent",
-        metadata: {
-          user_id: userId,
-        },
-        limit: 100,
-      });
-    } catch (e) {
-      console.error("Failed to get default assistant", e);
-    }
-
-    if (!userAssistants.length) {
+    if (!assistants.length) {
       // No assistants found, create a new assistant and set it as the default.
       await createCustomAssistant({
         newAssistant: {
@@ -344,7 +256,6 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
           description: "Your default assistant.",
           is_default: true,
         },
-        userId,
       });
 
       // Return early because this function will set the selected assistant and assistants state.
@@ -352,14 +263,14 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    setAssistants(userAssistants);
+    setAssistants(assistants);
 
-    const defaultAssistant = userAssistants.find(
-      (assistant) => assistant.metadata?.is_default
+    const defaultAssistant = assistants.find(
+      (assistant: Assistant) => assistant.metadata?.is_default
     );
     if (!defaultAssistant) {
       // Update the first assistant to be the default assistant, then set it as the selected assistant.
-      const firstAssistant = userAssistants.sort((a, b) => {
+      const firstAssistant = assistants.sort((a: Assistant, b: Assistant) => {
         return a.created_at.localeCompare(b.created_at);
       })[0];
       const updatedAssistant = await editCustomAssistant({
@@ -390,7 +301,6 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
               | undefined) || undefined,
         },
         assistantId: firstAssistant.assistant_id,
-        userId,
       });
 
       setSelectedAssistant(updatedAssistant);
@@ -409,7 +319,6 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
     isCreatingAssistant,
     isEditingAssistant,
     getOrCreateAssistant,
-    getAssistants,
     deleteAssistant,
     createCustomAssistant,
     editCustomAssistant,

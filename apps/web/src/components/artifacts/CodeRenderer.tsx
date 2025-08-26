@@ -73,7 +73,7 @@ export function CodeRendererComponent(props: Readonly<CodeRendererProps>) {
     if (updateRenderedArtifactRequired) {
       setUpdateRenderedArtifactRequired(false);
     }
-  }, [updateRenderedArtifactRequired]);
+  }, [updateRenderedArtifactRequired, setUpdateRenderedArtifactRequired]);
 
   if (!artifact) {
     return null;

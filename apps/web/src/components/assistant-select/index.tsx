@@ -22,7 +22,6 @@ import { cn } from "@/lib/utils";
 import { useAssistantContext } from "@/contexts/AssistantContext";
 
 interface AssistantSelectProps {
-  userId: string | undefined;
   chatStarted: boolean;
   className?: string;
   onOpenChange?: (isOpen: boolean) => void;
@@ -155,7 +154,6 @@ function AssistantSelectComponent(props: AssistantSelectProps) {
           }
           setCreateEditDialogOpen(c);
         }}
-        userId={props.userId}
         isEditing={!!editingAssistant}
         assistant={editingAssistant}
         createCustomAssistant={async ({

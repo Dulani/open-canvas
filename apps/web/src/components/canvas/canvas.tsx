@@ -52,7 +52,7 @@ export function CanvasComponent() {
       queryParams.delete(CHAT_COLLAPSED_QUERY_PARAM);
       router.replace(`?${queryParams.toString()}`, { scroll: false });
     }
-  }, [chatCollapsedSearchParam]);
+  }, [chatCollapsedSearchParam, router, searchParams]);
 
   const handleQuickStart = (
     type: "text" | "code",

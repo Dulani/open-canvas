@@ -110,7 +110,7 @@ export function WebSearchResults({ open, setOpen }: WebSearchResultsProps) {
     setOpen(true);
     setSearchResults(searchResults || []);
     setStatus(status);
-  }, [webSearchResultsId, messages]);
+  }, [webSearchResultsId, messages, open, setOpen, setWebSearchResultsId]);
 
   const handleClose = () => {
     setOpen(false);

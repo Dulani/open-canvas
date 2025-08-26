@@ -112,13 +112,13 @@ export function TextRendererComponent(props: TextRendererProps) {
         });
       })();
     }
-  }, [editor.getSelectedText()]);
+  }, [editor, artifact, setSelectedBlocks]);
 
   useEffect(() => {
     if (!props.isInputVisible) {
       setSelectedBlocks(undefined);
     }
-  }, [props.isInputVisible]);
+  }, [props.isInputVisible, setSelectedBlocks]);
 
   useEffect(() => {
     if (!artifact) {
@@ -152,7 +152,14 @@ export function TextRendererComponent(props: TextRendererProps) {
       setManuallyUpdatingArtifact(false);
       setUpdateRenderedArtifactRequired(false);
     }
-  }, [artifact, updateRenderedArtifactRequired]);
+  }, [
+    artifact,
+    updateRenderedArtifactRequired,
+    isStreaming,
+    manuallyUpdatingArtifact,
+    editor,
+    setUpdateRenderedArtifactRequired,
+  ]);
 
   useEffect(() => {
     if (isRawView) {
@@ -170,7 +177,7 @@ export function TextRendererComponent(props: TextRendererProps) {
         setManuallyUpdatingArtifact(false);
       }
     }
-  }, [isRawView, editor]);
+  }, [isRawView, editor, rawMarkdown]);
 
   const isComposition = useRef(false);
 

@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { Inter } from "next/font/google";
 import { cn } from "@/lib/utils";
+import { AssistantProvider } from "@/contexts/AssistantContext";
+import { GraphProvider } from "@/contexts/GraphContext";
+import { ThreadProvider } from "@/contexts/ThreadProvider";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
 
 const inter = Inter({
@@ -21,7 +24,13 @@ export default function RootLayout({
   return (
     <html lang="en" className="h-screen">
       <body className={cn("min-h-full", inter.className)}>
-        <NuqsAdapter>{children}</NuqsAdapter>
+        <NuqsAdapter>
+          <ThreadProvider>
+            <AssistantProvider>
+              <GraphProvider>{children}</GraphProvider>
+            </AssistantProvider>
+          </ThreadProvider>
+        </NuqsAdapter>
       </body>
     </html>
   );

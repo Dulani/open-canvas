@@ -16,18 +16,16 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { CustomQuickAction } from "@opencanvas/shared/types";
 import { NewCustomQuickActionDialog } from "./NewCustomQuickActionDialog";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useStore } from "@/hooks/useStore";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { TighterText } from "@/components/ui/header";
 import { GraphInput } from "@opencanvas/shared/types";
-import { User } from "@supabase/supabase-js";
 
 export interface CustomQuickActionsProps {
   isTextSelected: boolean;
   assistantId: string | undefined;
-  user: User | undefined;
   streamMessage: (params: GraphInput) => Promise<void>;
 }
 
@@ -82,7 +80,7 @@ const DropdownMenuItemWithDelete = ({
 };
 
 export function CustomQuickActions(props: CustomQuickActionsProps) {
-  const { user, assistantId, streamMessage } = props;
+  const { assistantId, streamMessage } = props;
   const {
     getCustomQuickActions,
     deleteCustomQuickAction,
@@ -102,15 +100,18 @@ export function CustomQuickActions(props: CustomQuickActionsProps) {
     setIsEditingId(id);
   };
 
-  const getAndSetCustomQuickActions = async (userId: string) => {
-    const actions = await getCustomQuickActions(userId);
-    setCustomQuickActions(actions);
-  };
+  const getAndSetCustomQuickActions = useCallback(
+    async (assistantId: string) => {
+      const actions = await getCustomQuickActions(assistantId);
+      setCustomQuickActions(actions);
+    },
+    [getCustomQuickActions]
+  );
 
   useEffect(() => {
-    if (typeof window === undefined || !assistantId || !user) return;
-    getAndSetCustomQuickActions(user.id);
-  }, [assistantId, user]);
+    if (typeof window === undefined || !assistantId) return;
+    getAndSetCustomQuickActions(assistantId);
+  }, [assistantId, getAndSetCustomQuickActions]);
 
   const handleNewActionClick = (e: Event) => {
     e.preventDefault();
@@ -130,10 +131,10 @@ export function CustomQuickActions(props: CustomQuickActionsProps) {
   };
 
   const handleDelete = async (id: string) => {
-    if (!user) {
+    if (!assistantId) {
       toast({
         title: "Failed to delete",
-        description: "User not found",
+        description: "Assistant not found",
         variant: "destructive",
         duration: 5000,
       });
@@ -143,7 +144,7 @@ export function CustomQuickActions(props: CustomQuickActionsProps) {
       const deletionSuccess = await deleteCustomQuickAction(
         id,
         customQuickActions || [],
-        user.id
+        assistantId
       );
       if (deletionSuccess) {
         toast({
@@ -240,7 +241,6 @@ export function CustomQuickActions(props: CustomQuickActionsProps) {
         </DropdownMenuItem>
       </DropdownMenuContent>
       <NewCustomQuickActionDialog
-        user={user}
         allQuickActions={customQuickActions || []}
         isEditing={isEditing}
         open={dialogOpen}
@@ -250,6 +250,7 @@ export function CustomQuickActions(props: CustomQuickActionsProps) {
             setIsEditing(false);
           }
         }}
+        assistantId={assistantId}
         customQuickAction={
           isEditing && isEditingId
             ? customQuickActions?.find((a) => a.id === isEditingId)

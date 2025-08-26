@@ -2356,14 +2356,6 @@
     "@types/ws" "^8.5.10"
     ws "^8.18.0"
 
-"@supabase/ssr@^0.5.1":
-  version "0.5.2"
-  resolved "https://registry.yarnpkg.com/@supabase/ssr/-/ssr-0.5.2.tgz#04233a0ca23a5bc15e02006fb324b9ed2f9f645d"
-  integrity sha512-n3plRhr2Bs8Xun1o4S3k1CDv17iH5QY9YcoEvXX3bxV1/5XSasA0mNXYycFmADIdtdE6BG9MRjP5CGIs8qxC8A==
-  dependencies:
-    "@types/cookie" "^0.6.0"
-    cookie "^0.7.0"
-
 "@supabase/storage-js@2.7.1":
   version "2.7.1"
   resolved "https://registry.yarnpkg.com/@supabase/storage-js/-/storage-js-2.7.1.tgz#761482f237deec98a59e5af1ace18c7a5e0a69af"
@@ -2659,11 +2651,6 @@
   integrity sha512-6+7nlbMVX/PVDCwaIQ8nTOPveOcFLSt8GcXdx8hD0bt39uWxYT88uXzqTd4fTvqta7oeUJqudepapKNt2DYJFw==
   dependencies:
     tslib "^2.4.0"
-
-"@types/cookie@^0.6.0":
-  version "0.6.0"
-  resolved "https://registry.yarnpkg.com/@types/cookie/-/cookie-0.6.0.tgz#eac397f28bf1d6ae0ae081363eca2f425bedf0d5"
-  integrity sha512-4Kh9a6B2bQciAhf7FSuMRRkUWecJgJu9nPnx3yzpsfXX/c50REIqpHY4C82bXP90qrLtXtkDxTZosYO3UpOwlA==
 
 "@types/debug@^4.0.0":
   version "4.1.12"
@@ -4056,11 +4043,6 @@ console-table-printer@^2.12.1:
   integrity sha512-wKGOQRRvdnd89pCeH96e2Fn4wkbenSP6LMHfjfyNLMbGuHEFbMqQNuxXqd0oXG9caIOQ1FTvc5Uijp9/4jujnQ==
   dependencies:
     simple-wcswidth "^1.0.1"
-
-cookie@^0.7.0:
-  version "0.7.2"
-  resolved "https://registry.yarnpkg.com/cookie/-/cookie-0.7.2.tgz#556369c472a2ba910f2979891b526b3436237ed7"
-  integrity sha512-yki5XnKuf750l50uGTllt6kKILY4nQ1eNIQatoXEByZ5dWgnKqbnqmTrBE5B4N7lrMJKQ2ytWMiTO2o0v6Ew/w==
 
 copy-anything@^3.0.2:
   version "3.0.5"

@@ -93,30 +93,15 @@ export function useStore() {
   };
 
   const getCustomQuickActions = async (
-    userId: string
+    assistantId: string
   ): Promise<CustomQuickAction[] | undefined> => {
     setIsLoadingQuickActions(true);
     try {
-      const res = await fetch("/api/store/get", {
-        method: "POST",
-        body: JSON.stringify({
-          namespace: ["custom_actions", userId],
-          key: "actions",
-        }),
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (!res.ok) {
-        return undefined;
+      const actions = localStorage.getItem(`custom_actions_${assistantId}`);
+      if (actions) {
+        return Object.values(JSON.parse(actions));
       }
-
-      const { item } = await res.json();
-      if (!item?.value) {
-        return undefined;
-      }
-      return Object.values(item?.value);
+      return undefined;
     } finally {
       setIsLoadingQuickActions(false);
     }
@@ -125,7 +110,7 @@ export function useStore() {
   const deleteCustomQuickAction = async (
     id: string,
     rest: CustomQuickAction[],
-    userId: string
+    assistantId: string
   ): Promise<boolean> => {
     const valuesWithoutDeleted = rest.reduce<Record<string, CustomQuickAction>>(
       (acc, action) => {
@@ -137,30 +122,17 @@ export function useStore() {
       {}
     );
 
-    const res = await fetch("/api/store/put", {
-      method: "POST",
-      body: JSON.stringify({
-        namespace: ["custom_actions", userId],
-        key: "actions",
-        value: valuesWithoutDeleted,
-      }),
-      headers: {
-        "Content-Type": "application/json",
-      },
-    });
-
-    if (!res.ok) {
-      return false;
-    }
-
-    const { success } = await res.json();
-    return success;
+    localStorage.setItem(
+      `custom_actions_${assistantId}`,
+      JSON.stringify(valuesWithoutDeleted)
+    );
+    return true;
   };
 
   const createCustomQuickAction = async (
     newAction: CustomQuickAction,
     rest: CustomQuickAction[],
-    userId: string
+    assistantId: string
   ): Promise<boolean> => {
     const newValue = rest.reduce<Record<string, CustomQuickAction>>(
       (acc, action) => {
@@ -171,30 +143,17 @@ export function useStore() {
     );
 
     newValue[newAction.id] = newAction;
-    const res = await fetch("/api/store/put", {
-      method: "POST",
-      body: JSON.stringify({
-        namespace: ["custom_actions", userId],
-        key: "actions",
-        value: newValue,
-      }),
-      headers: {
-        "Content-Type": "application/json",
-      },
-    });
-
-    if (!res.ok) {
-      return false;
-    }
-
-    const { success } = await res.json();
-    return success;
+    localStorage.setItem(
+      `custom_actions_${assistantId}`,
+      JSON.stringify(newValue)
+    );
+    return true;
   };
 
   const editCustomQuickAction = async (
     editedAction: CustomQuickAction,
     rest: CustomQuickAction[],
-    userId: string
+    assistantId: string
   ): Promise<boolean> => {
     const newValue = rest.reduce<Record<string, CustomQuickAction>>(
       (acc, action) => {
@@ -205,24 +164,11 @@ export function useStore() {
     );
 
     newValue[editedAction.id] = editedAction;
-    const res = await fetch("/api/store/put", {
-      method: "POST",
-      body: JSON.stringify({
-        namespace: ["custom_actions", userId],
-        key: "actions",
-        value: newValue,
-      }),
-      headers: {
-        "Content-Type": "application/json",
-      },
-    });
-
-    if (!res.ok) {
-      return false;
-    }
-
-    const { success } = await res.json();
-    return success;
+    localStorage.setItem(
+      `custom_actions_${assistantId}`,
+      JSON.stringify(newValue)
+    );
+    return true;
   };
 
   const putContextDocuments = async ({

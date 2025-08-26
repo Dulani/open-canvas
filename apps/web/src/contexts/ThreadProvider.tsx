@@ -1,3 +1,5 @@
+"use client";
+
 import {
   ALL_MODEL_NAMES,
   ALL_MODELS,
@@ -6,9 +8,7 @@ import {
 } from "@opencanvas/shared/models";
 import { CustomModelConfig } from "@opencanvas/shared/types";
 import { Thread } from "@langchain/langgraph-sdk";
-import { createClient } from "../hooks/utils";
 import { createContext, ReactNode, useContext, useMemo, useState } from "react";
-import { useUserContext } from "./UserContext";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryState } from "nuqs";
 
@@ -35,7 +35,6 @@ type ThreadContentType = {
 const ThreadContext = createContext<ThreadContentType | undefined>(undefined);
 
 export function ThreadProvider({ children }: { children: ReactNode }) {
-  const { user } = useUserContext();
   const { toast } = useToast();
   const [threadId, setThreadId] = useQueryState("threadId");
   const [userThreads, setUserThreads] = useState<Thread[]>([]);
@@ -137,22 +136,11 @@ export function ThreadProvider({ children }: { children: ReactNode }) {
   };
 
   const createThread = async (): Promise<Thread | undefined> => {
-    if (!user) {
-      toast({
-        title: "Failed to create thread",
-        description: "User not found",
-        duration: 5000,
-        variant: "destructive",
-      });
-      return;
-    }
-    const client = createClient();
     setCreateThreadLoading(true);
-
     try {
-      const thread = await client.threads.create({
+      const thread = {
+        thread_id: `thread_${Math.random().toString(36).substring(7)}`,
         metadata: {
-          supabase_user_id: user.id,
           customModelName: modelName,
           modelConfig: {
             ...modelConfig,
@@ -162,7 +150,15 @@ export function ThreadProvider({ children }: { children: ReactNode }) {
             }),
           },
         },
-      });
+        values: {},
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      } as Thread;
+
+      const threads =
+        JSON.parse(localStorage.getItem("threads") || "[]") || [];
+      threads.push(thread);
+      localStorage.setItem("threads", JSON.stringify(threads));
 
       setThreadId(thread.thread_id);
       // Fetch updated threads so the new thread is included.
@@ -184,47 +180,25 @@ export function ThreadProvider({ children }: { children: ReactNode }) {
   };
 
   const getUserThreads = async () => {
-    if (!user) {
-      toast({
-        title: "Failed to create thread",
-        description: "User not found",
-        duration: 5000,
-        variant: "destructive",
-      });
-      return;
-    }
-
     setIsUserThreadsLoading(true);
     try {
-      const client = createClient();
-
-      const userThreads = await client.threads.search({
-        metadata: {
-          supabase_user_id: user.id,
-        },
-        limit: 100,
-      });
-
-      if (userThreads.length > 0) {
-        const lastInArray = userThreads[0];
-        const allButLast = userThreads.slice(1, userThreads.length);
-        const filteredThreads = allButLast.filter(
-          (thread) => thread.values && Object.keys(thread.values).length > 0
-        );
-        setUserThreads([...filteredThreads, lastInArray]);
-      }
+      const threads =
+        JSON.parse(localStorage.getItem("threads") || "[]") || [];
+      setUserThreads(threads);
     } finally {
       setIsUserThreadsLoading(false);
     }
   };
 
   const deleteThread = async (id: string, clearMessages: () => void) => {
-    setUserThreads((prevThreads) => {
-      const newThreads = prevThreads.filter(
-        (thread) => thread.thread_id !== id
-      );
-      return newThreads;
-    });
+    const threads =
+      JSON.parse(localStorage.getItem("threads") || "[]") || [];
+    const updatedThreads = threads.filter(
+      (thread: Thread) => thread.thread_id !== id
+    );
+    localStorage.setItem("threads", JSON.stringify(updatedThreads));
+    setUserThreads(updatedThreads);
+
     if (id === threadId) {
       clearMessages();
       // Create a new thread. Use .then to avoid blocking the UI.
@@ -232,29 +206,12 @@ export function ThreadProvider({ children }: { children: ReactNode }) {
       // threads to update UI.
       void createThread();
     }
-    const client = createClient();
-    try {
-      await client.threads.delete(id);
-    } catch (e) {
-      console.error(`Failed to delete thread with ID ${id}`, e);
-    }
   };
 
   const getThread = async (id: string): Promise<Thread | undefined> => {
-    try {
-      const client = createClient();
-      return client.threads.get(id);
-    } catch (e) {
-      console.error("Failed to get thread by ID.", id, e);
-      toast({
-        title: "Failed to get thread",
-        description: "An error occurred while trying to get a thread.",
-        duration: 5000,
-        variant: "destructive",
-      });
-    }
-
-    return undefined;
+    const threads =
+      JSON.parse(localStorage.getItem("threads") || "[]") || [];
+    return threads.find((thread: Thread) => thread.thread_id === id);
   };
 
   const contextValue: ThreadContentType = {

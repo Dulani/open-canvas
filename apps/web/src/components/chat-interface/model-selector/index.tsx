@@ -16,7 +16,6 @@ import {
   Dispatch,
   SetStateAction,
   useCallback,
-  useEffect,
   useState,
 } from "react";
 import { ModelConfigPanel } from "./model-config-pannel";
@@ -34,7 +33,6 @@ import {
 } from "@radix-ui/react-popover";
 import { Check } from "lucide-react";
 import NextImage from "next/image";
-import { useUserContext } from "@/contexts/UserContext";
 
 interface ModelSelectorProps {
   modelName: ALL_MODEL_NAMES;
@@ -118,15 +116,9 @@ export default function ModelSelector({
   setModelName,
   modelConfigs,
 }: ModelSelectorProps) {
-  const { user } = useUserContext();
-  const [isLangChainUser, setIsLangChainUser] = useState(false);
+  const [isLangChainUser] = useState(false);
   const [open, setOpen] = useState(false);
   const [openConfigModelId, setOpenConfigModelId] = useState<ALL_MODEL_NAMES>();
-
-  useEffect(() => {
-    if (!user) return;
-    setIsLangChainUser(user?.email?.endsWith("@langchain.dev") || false);
-  }, [user]);
 
   const handleModelChange = useCallback(
     async (newModel: ALL_MODEL_NAMES) => {

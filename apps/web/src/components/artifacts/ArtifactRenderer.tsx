@@ -18,7 +18,6 @@ import { ArtifactLoading } from "./ArtifactLoading";
 import { AskOpenCanvas } from "./components/AskOpenCanvas";
 import { useGraphContext } from "@/contexts/GraphContext";
 import { ArtifactHeader } from "./header";
-import { useUserContext } from "@/contexts/UserContext";
 import { useAssistantContext } from "@/contexts/AssistantContext";
 
 export interface ArtifactRendererProps {
@@ -37,7 +36,6 @@ interface SelectionBox {
 function ArtifactRendererComponent(props: ArtifactRendererProps) {
   const { graphData } = useGraphContext();
   const { selectedAssistant } = useAssistantContext();
-  const { user } = useUserContext();
   const {
     artifact,
     selectedBlocks,
@@ -246,14 +244,14 @@ function ArtifactRendererComponent(props: ArtifactRendererProps) {
     } catch (e) {
       console.error("Failed to get artifact selection", e);
     }
-  }, [isSelectionActive, selectionBox]);
+  }, [isSelectionActive, selectionBox, artifact]);
 
   useEffect(() => {
     if (!!selectedBlocks && !isSelectionActive) {
       // Selection is not active but selected blocks are present. Clear them.
       setSelectedBlocks(undefined);
     }
-  }, [selectedBlocks, isSelectionActive]);
+  }, [selectedBlocks, isSelectionActive, setSelectedBlocks]);
 
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
@@ -376,7 +374,6 @@ function ArtifactRendererComponent(props: ArtifactRendererProps) {
       <CustomQuickActions
         streamMessage={streamMessage}
         assistantId={selectedAssistant?.assistant_id}
-        user={user}
         isTextSelected={isSelectionActive || selectedBlocks !== undefined}
       />
       {currentArtifactContent.type === "text" ? (

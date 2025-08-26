@@ -61,7 +61,6 @@ const CircleStopIcon = () => {
 
 interface ComposerProps {
   chatStarted: boolean;
-  userId: string | undefined;
   searchEnabled: boolean;
 }
 
@@ -81,7 +80,6 @@ export const Composer: FC<ComposerProps> = (props: ComposerProps) => {
 
         <div className="flex flex-row w-full items-center justify-start my-auto">
           <ComposerActionsPopOut
-            userId={props.userId}
             chatStarted={props.chatStarted}
           />
           <ComposerPrimitive.Input

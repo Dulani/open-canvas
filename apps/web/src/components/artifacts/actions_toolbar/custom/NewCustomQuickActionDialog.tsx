@@ -26,17 +26,16 @@ import { useToast } from "@/hooks/use-toast";
 import { v4 as uuidv4 } from "uuid";
 import { CustomQuickAction } from "@opencanvas/shared/types";
 import { TighterText } from "@/components/ui/header";
-import { User } from "@supabase/supabase-js";
 
 const CUSTOM_INSTRUCTIONS_TOOLTIP_TEXT = `This field contains the custom instructions you set, which will then be used to instruct the LLM on how to re-generate the selected artifact.`;
 const FULL_PROMPT_TOOLTIP_TEXT = `This is the full prompt that will be set to the LLM when you invoke this quick action, including your custom instructions and other default context.`;
 
 interface NewCustomQuickActionDialogProps {
-  user: User | undefined;
+  assistantId: string | undefined;
   isEditing: boolean;
   allQuickActions: CustomQuickAction[];
   customQuickAction?: CustomQuickAction;
-  getAndSetCustomQuickActions: (userId: string) => Promise<void>;
+  getAndSetCustomQuickActions: (assistantId: string) => Promise<void>;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
@@ -70,7 +69,6 @@ export function NewCustomQuickActionDialog(
   props: NewCustomQuickActionDialogProps
 ) {
   const { toast } = useToast();
-  const { user } = props;
   const { createCustomQuickAction, editCustomQuickAction } = useStore();
   const [isSubmitLoading, setIsSubmitLoading] = useState(false);
   const [name, setName] = useState("");
@@ -94,9 +92,9 @@ export function NewCustomQuickActionDialog(
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!user) {
+    if (!props.assistantId) {
       toast({
-        title: "User not found",
+        title: "Assistant not found",
         variant: "destructive",
         duration: 5000,
       });
@@ -117,7 +115,7 @@ export function NewCustomQuickActionDialog(
             includeReflections,
           },
           props.allQuickActions,
-          user.id
+          props.assistantId
         );
       } else {
         success = await createCustomQuickAction(
@@ -130,7 +128,7 @@ export function NewCustomQuickActionDialog(
             includeReflections,
           },
           props.allQuickActions,
-          user.id
+          props.assistantId
         );
       }
 
@@ -141,7 +139,7 @@ export function NewCustomQuickActionDialog(
         handleClearState();
         props.onOpenChange(false);
         // Re-fetch after creating a new custom quick action to update the list
-        await props.getAndSetCustomQuickActions(user.id);
+        await props.getAndSetCustomQuickActions(props.assistantId);
       } else {
         toast({
           title: `Failed to ${props.isEditing ? "edit" : "create"} custom quick action`,
